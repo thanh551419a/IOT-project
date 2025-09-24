@@ -1,0 +1,74 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+html, body, #root {
+  height: 95%;
+  margin: 0;
+  display: flex;
+  justify-content: center; /* căn ngang */
+  align-items: center;     /* căn dọc */
+}
+
+.menu-highlight {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 140px; /* đúng chiều cao 1 item */
+  background: aqua;
+  opacity: 0.5;
+  border-radius: 30px;
+  z-index: 1;
+  transition: top 0.3s;
+}
+
+.BoxInDashBoard {
+  width: 75%;
+  height: 140px;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  text-decoration: none;
+  background-color: none;
+  font-size: 30px;
+  font-weight: bold;
+  color: black;
+  align-self: center;
+  /* background-color: red; */
+  margin-top : 40px;
+  /* margin-top: 40px; */ /* Bỏ dòng này nếu không cần khoảng cách giữa các item */
+}
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
