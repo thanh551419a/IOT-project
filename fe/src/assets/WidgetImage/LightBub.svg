@@ -1,0 +1,23 @@
+<svg width="60" height="100" viewBox="0 0 60 100" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="black" stroke-width="2">
+  <!-- scale giữ nguyên, dịch nhóm lên -->
+  <g transform="scale(1.05) translate(-3,-2)">
+    <!-- Bóng đèn -->
+    <circle cx="30" cy="28" r="25" fill="none" stroke="black" />
+
+    <!-- Thân nối -->
+    <path d="M15 50 Q30 66 45 50" stroke="black" fill="none" />
+
+    <!-- Đường chia -->
+    <line x1="22" y1="50" x2="22" y2="74" />
+    <line x1="38" y1="50" x2="38" y2="74" />
+    <line x1="30" y1="50" x2="30" y2="74" />
+
+    <!-- Đui đèn -->
+    <rect x="22" y="74" width="16" height="6" />
+    <rect x="20" y="80" width="20" height="5" />
+    <rect x="18" y="85" width="24" height="3" />
+
+    <!-- Đầu tiếp điện -->
+    <circle cx="30" cy="92" r="3" />
+  </g>
+</svg>

@@ -1,0 +1,17 @@
+<svg width="60" height="100" viewBox="-10 0 20 80" xmlns="http://www.w3.org/2000/svg">
+  <!-- Thân nhiệt kế -->
+  <rect x="-4" y="0" width="8" height="60" fill="none" stroke="black" stroke-width="2" />
+
+  <!-- Vạch đo -->
+  <line x1="4" y1="7.5" x2="7" y2="7.5" stroke="black" stroke-width="1" />
+  <line x1="4" y1="15" x2="7" y2="15" stroke="black" stroke-width="1" />
+  <line x1="4" y1="22.5" x2="7" y2="22.5" stroke="black" stroke-width="1" />
+  <line x1="4" y1="30" x2="7" y2="30" stroke="black" stroke-width="1" />
+  <line x1="4" y1="37.5" x2="7" y2="37.5" stroke="black" stroke-width="1" />
+  <line x1="4" y1="45" x2="7" y2="45" stroke="black" stroke-width="1" />
+  <line x1="4" y1="52.5" x2="7" y2="52.5" stroke="black" stroke-width="1" />
+  <line x1="4" y1="60" x2="7" y2="60" stroke="black" stroke-width="1" />
+
+  <!-- Bóng tròn -->
+  <circle cx="0" cy="70" r="10" fill="none" stroke="black" stroke-width="2" />
+</svg>
