@@ -1,7 +1,8 @@
-const express = require("express");
-const cors = require("cors");
-const mqttClient = require("./mqtt/mqttClient");
-const { SensorData } = require("./databases/db");
+import express from "express";
+import cors from "cors";
+import client from "./mqtt/mqttClient.js";
+import { getTodayCollectionModel } from "./databases/checkCollections.js";
+// import mongoose from "mongoose"; // nếu cần kiểm tra connection
 
 const app = express();
 app.use(cors());
@@ -9,7 +10,15 @@ app.use(express.json());
 
 app.get("/data", async (req, res) => {
   try {
-    const data = await SensorData.find().sort({ time: -1 }).limit(10);
+    // getTodayCollectionModel có thể trả về model trực tiếp (cũ) hoặc object { model, ... } (nếu bạn đã thay đổi hàm)
+    const result = await getTodayCollectionModel();
+    const model = result?.model ?? result;
+
+    if (!model) {
+      return res.status(500).json({ error: "No model available for today's collection" });
+    }
+
+    const data = await model.find().sort({ time: -1 }).limit(10);
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
