@@ -37,8 +37,8 @@ console.log("in mqttClient.js");
 
 client.on("connect", () => {
   console.log(`✅ Connected to MQTT broker at ${MQTT_HOST}:${MQTT_PORT}`);
-
   // Đăng ký topic (có thể mở rộng tùy sensor)
+  client.subscribe("#");
 });
 
 client.on("reconnect", () => {

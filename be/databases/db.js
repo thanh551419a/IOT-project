@@ -28,7 +28,7 @@ client.on("connect", async () => { // ✅ thêm async ở đây
 
     console.log("📘 Collection model sẵn sàng:", SensorModel.collection.name);
     // Đọc dữ liệu từ MQTT topic
-
+    console.log("✅ Đã subscribe vào tất cả các topic");
     // ✅ Lưu thử 1 bản ghi vào collection ngày hôm nay
     //console.log("💾 Dữ liệu test đã được lưu thành công!");
   } catch (err) {
@@ -36,25 +36,32 @@ client.on("connect", async () => { // ✅ thêm async ở đây
   }
 });
 client.on("message" , async (topic, message) => {
-  try {
-    console.log(`📩 Nhận dữ liệu từ topic "${topic}":`, message.toString());
+    try {
+    const value = message.toString().trim();
 
-    // 🔍 Parse dữ liệu JSON từ MQTT
-    const data = JSON.parse(message.toString());
-    
-    // 📊 Tách dữ liệu ra
-    const { temperature, humidity, light, timestamp } = data;
-    
-    console.log("🌡️ Nhiệt độ:", temperature);
-    console.log("💧 Độ ẩm:", humidity);
-    console.log("💡 Ánh sáng:", light);
-    console.log("⏰ Thời gian:", timestamp);
-    // tách dữ liệu ra để lưu vào database
-
-    // ✅ Lấy model collection hiện tại
+   // 📊 Phân loại dữ liệu theo topic
+   let temp = "";
+if (topic === "esp32/dht/temperature") {
+  console.log(parseFloat(value));
+} 
+else if (topic === "esp32/dht/humidity") {
+  console.log(parseFloat(value));
+} 
+else if (topic === "esp32/ldr/value") {
+  console.log(parseInt(value));
+}
+if (topic === "esp32/device/led/1") {
+  temp += value;
+}
+else if (topic === "esp32/device/led/2") {
+  temp += value;
+}
+else if (topic === "esp32/device/led/3") {
+  temp += value;
+}
+console.log(temp);
   } catch (err) {
-    console.error("❌ Lỗi khi xử lý dữ liệu MQTT:", err);
-  }
+    console.error("❌ Lỗi khi xử lý dữ liệu MQTT:", err);}
 });
 
 export default client;
