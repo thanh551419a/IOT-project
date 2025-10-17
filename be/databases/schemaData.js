@@ -4,7 +4,7 @@ const sensorSchema = new mongoose.Schema({
   // Loại dữ liệu: "temperature", "humidity", "light", "led"
   type: {
     type: String,
-    enum: ["temperature", "humidity", "light", "led"],
+    enum: ["temperature", "humidity", "light", "led1", "led2", "led3"],
     required: true,
   },
 
