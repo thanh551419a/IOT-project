@@ -17,6 +17,8 @@ import { checkMongoConnection } from "./databases/checkConnection.js";
 // MongoDB URI
 const uri = "mongodb+srv://thanh551419a:tPDYsc1H3Ab7kvmy@cluster0.dw9comk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 let SensorModel = null;
+// ✅ Thêm dòng này
+
 const topicMap = [
   { topic: "esp32/dht/temperature", key: "temperature", label: "🌡️ Temperature" },
   { topic: "esp32/dht/humidity", key: "humidity", label: "💧 Humidity" },
@@ -50,17 +52,23 @@ client.on("connect", async () => {
 //MQTT Message handler
 client.on("message", async (topic, message) => {
   const vnDate = getVietnamDate();
-  const day = String(vnDate.getUTCDate()).padStart(2, '0');
+  const day = String(vnDate.getUTCDate()).padStart(2, '0'); 
   if(day != cache.get("dayCollectionCreate")){
+    //console.log("kieu du lieu cua day: ",typeof day, day); // string "30"
+    cache.set("dayCollectionCreate", String(day));
+    //console.log("kieu du lieu cua dayCollectionCreate:" ,typeof cache.get("dayCollectionCreate"), cache.get("dayCollectionCreate"));
     SensorModel = await getTodayCollectionModel();
+    console.log("from mq");
     db.setSensorModel(SensorModel);
-  }
+    //cache.set("dayCollectionCreate", day); // cập nhật ngày hiện tại vào cache
+    
+  }// kiểm tra xem cần tạo collection hay không
+
   try {
+    //console.log(`📩 Nhận message - Topic: ${topic}, Message: ${message.toString()}`);
     const value = message.toString().trim();
-    //const model = await getTodayCollectionModel();
-    if(cache.get(light) === null ){
-      await Resolve(value);
-    }
+
+    await db.Resolve(topic,value);
     // chở kiểm tra collection đã có chưa rồi mới lưu dữ liệu vào collection tương ứng
     // Heartbeat
     if (topic === "esp32/heartbeat") {
@@ -81,7 +89,7 @@ async function heartbeatLoop() {
     try {
       const now = Date.now();
       const diff = now - lastHeartbeat;
-      HEARTBEAT_TIMEOUT = 5000;
+      HEARTBEAT_TIMEOUT = 10000;
       const resetValues = {
         temperature: 0,
         humidity: 0,
@@ -96,10 +104,18 @@ async function heartbeatLoop() {
         console.log("⚠️ Không nhận được heartbeat → reset tất cả giá trị và LED OFF");
         const vnDate = getVietnamDate();
         const day = String(vnDate.getUTCDate()).padStart(2, '0');
+
+
+
         //console.log("ngày trongcahe1:",cache.get("dayCollectionCreate"));  
+        //=====================Dang bi loi o day nay=========================
+        // console.log("kieu du lieu cua day: ",typeof day, day); // string "30"
+  
+        // console.log("kieu du lieu cua dayCollectionCreate:" ,typeof cache.get("dayCollectionCreate"), cache.get("dayCollectionCreate"));
+        // console.log(day != cache.get("dayCollectionCreate"));
         if(day != cache.get("dayCollectionCreate")){
           SensorModel = await getTodayCollectionModel();
-          cache.set("dayCollectionCreate", day); // cập nhật ngày hiện tại vào cache
+          cache.set("dayCollectionCreate", String(day)); // cập nhật ngày hiện tại vào cache
           //console.log("ngày trongcahe:",cache.get("dayCollectionCreate"));  
           db.setSensorModel(SensorModel);
         }
@@ -124,9 +140,6 @@ async function heartbeatLoop() {
 }
 
 // Bắt đầu heartbeat loop
-
-
-
 
 
 
@@ -163,17 +176,24 @@ app.use(express.json());
 //     newData: sensor,
 //   });
 // });
-
+let sseClients = [];
 app.get("/events", (req, res) => {
+  console.log("địt mẹ js");
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
-
+  console.log(res);
   sseClients.push(res);
-
   req.on("close", () => {
     const index = sseClients.indexOf(res);
     if (index !== -1) sseClients.splice(index, 1);
+  });
+});
+
+db.setSSECallback((data) => {
+  console.log("📡 Gửi SSE:", data);
+  sseClients.forEach((client) => {
+    client.write(`data: ${JSON.stringify(data)}\n\n`);
   });
 });
 const PORT = 3000;

@@ -14,6 +14,18 @@ export function setSensorModel(model) {
 export function getSensorModel() {
   return SensorModel;
 }
+let sendSSE = null;
+export function setSSECallback(callback) {
+  sendSSE = callback;
+}
+const topicMap = [
+  { topic: "esp32/dht/temperature", key: "temperature", label: "🌡️ Temperature" },
+  { topic: "esp32/dht/humidity", key: "humidity", label: "💧 Humidity" },
+  { topic: "esp32/ldr/value", key: "light", label: "💡 Light" },
+  { topic: "esp32/device/led/1", key: "led1", label: "💡 LED1 Status" },
+  { topic: "esp32/device/led/2", key: "led2", label: "💡 LED2 Status" },
+  { topic: "esp32/device/led/3", key: "led3", label: "💡 LED3 Status" },
+];
 // await mongoose.connect(uri)
 //   .then(() => {
 //     console.log("✅ Connected to MongoDB");
@@ -52,25 +64,21 @@ export function checkTime() {
 export function updateCache(key,value){
   cache.set(key,value);
 }
-export async function Resolve(message) {// hàm xử lý lưu value theo đợt 
-  // Tách message thành từng cặp "topic: value"
-  const pairs = message.split(/\s{2,}/).map(pair => pair.trim()).filter(Boolean);
-
-  for (const pair of pairs) {
-    const [topic, rawValue] = pair.split(":").map(s => s.trim());
-    const mapItem = topicMap.find(t => t.topic === topic);
-    if (!mapItem) continue;
-
-    const { key, label } = mapItem;
-    const newValue = rawValue;
-    const oldValue = cache.get(key);
-
-    if (oldValue !== newValue) {
-      console.log(`${label}:`, newValue);
-      updateCache(key,value);
-      await handleData(key, newValue,"updated");
-    }
+export async function Resolve(topic , value) {
+  const mapItem = topicMap.find(t => t.topic === topic);
+  console.log(value);
+  if (!mapItem) return;
+  console.log("1.old value:",cache.get(mapItem.key) , "new value:", value , " Is equal:", cache.get(mapItem.key) === value);
+  const { key, label } = mapItem;
+  const oldValue = cache.get(mapItem.key);
+  if (oldValue !== value) {
+    console.log(`${label}:`, value);
+    //updateCache(key, value);
+    await handleData(key, value, "updated");
+  } else {
+    console.log(`⏭️ ${label} không thay đổi, bỏ qua`);
   }
+  console.log("2.old value:",cache.get(mapItem.key) , "new value:", value);
 }
 // ===================== Save to Database =====================
 export async function saveToDatabase(type, data, status1) {// hàm lưu vào databases
@@ -95,9 +103,18 @@ async function handleData(type, value) {// lưu với status là updated và ki�
     console.warn(`⚠️ SensorModel chưa sẵn sàng, bỏ qua ${type}:`, value);
     return;
   }
+  const dataSent = { type:type, value: value, timestamp: new Date() };
+  if (sendSSE) {
+    sendSSE(dataSent);
+  }
   const { isStartOfDay, isEndOfDay, timestamp } = checkTime();
   const data = { type, value, timestamp };
   // Đầu ngày
+
+  // if(cache.get(type) === null || cache.get(type) === "none" || cache.get(type) === 0){
+  //   await saveToDatabase(type, data,"updated");
+  //   cache.set(type, value);}
+  //   else{
   if (isStartOfDay) {// lưu database khi đã t
     console.log(`🌅 Đầu ngày (VN) - Lưu ${type}:`, value);
     await saveToDatabase(type, data,"updated");
@@ -118,7 +135,8 @@ async function handleData(type, value) {// lưu với status là updated và ki�
     } else {
       console.log(`⏭️ Bỏ qua ${type} (không thay đổi):`, value);
     }
-  }
+  //}
+}
 }
 
 // ===================== MQTT Connect =====================

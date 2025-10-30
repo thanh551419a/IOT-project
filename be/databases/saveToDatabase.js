@@ -59,20 +59,6 @@ function checkTime() {
 // 🔄 Xử lý và lưu dữ liệu
 
 // 🚀 Khi MQTT broker kết nối thành công
-client.on("connect", async () => {
-  console.log("✅ Connected to MQTT broker");
-  
-  try {
-    const SensorModel = await getTodayCollectionModel();
-    console.log("📘 Collection model sẵn sàng:", SensorModel.collection.name);
-    
-    // Subscribe tất cả topic ESP32
-    client.subscribe("esp32/#");
-    console.log("✅ Đã subscribe vào tất cả các topic");
-  } catch (err) {
-    console.error("❌ Lỗi khi thao tác với collection:", err);
-  }
-});
 
 // 📦 Lưu trữ tạm LED
 let ledTemp = {
