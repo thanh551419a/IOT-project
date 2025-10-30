@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import sensorSchema from "./schemaData.js";
-
+import cache from "../cache/cache.js";
 /**
  * Lấy thời gian GMT+7 (Việt Nam)
  */
@@ -21,7 +21,6 @@ export async function getTodayCollectionModel() {
   if (!mongoose.connection.db) {
     await new Promise(resolve => mongoose.connection.once("open", resolve));
   }
-
   // Lấy ngày theo giờ Việt Nam
   const vnDate = getVietnamDate();
   const year = vnDate.getUTCFullYear();
@@ -37,6 +36,8 @@ export async function getTodayCollectionModel() {
   
   if (!exists) {
     console.log(`🆕 Collection mới được tạo (VN time): ${collectionName}`);
+    // cập nhật date tạo vào 
+    cache.set(day , day);
   } else {
     console.log(`✅ Collection đã tồn tại (VN time): ${collectionName}`);
   }

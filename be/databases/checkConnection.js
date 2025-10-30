@@ -16,7 +16,7 @@ export function checkMongoConnection() {
       console.log("🟠 MongoDB: Disconnecting...");
       return "disconnecting";
     default:
-      console.log("⚪ MongoDB: Unknown state");
+      console.log("⚪ MongoDB: Unknown state");q
       return "unknown";
   }
 }

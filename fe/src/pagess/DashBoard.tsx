@@ -1,6 +1,5 @@
-import React, { useState } from "react";
-//import SquareInformation from "../../components/SquareInformation/SquareInformation";
-//import Logo from "./assets/Humidity.png"; // import trực tiếp ảnh
+import React, { useState, useEffect } from "react";
+import io, { Socket } from "socket.io-client";
 import HumidityIcon from "../assets/WidgetImage/Humidity.svg";
 import LightBubs from "../assets/WidgetImage/LightBub.svg";
 import TemperatureIcon from "../assets/WidgetImage/Temperature.svg";
@@ -9,34 +8,73 @@ import ToggleSwitch from "../components/ToggleSwitch";
 import airConditioner from "../assets/ToggleImage/airConditioner.svg";
 import fan from "../assets/ToggleImage/fan.svg";
 import Light from "../assets/ToggleImage/Light.svg";
+
+interface DeviceState {
+  air: boolean;
+  fan: boolean;
+  light: boolean;
+}
+
+const socket: Socket = io("http://localhost:3000"); // Kết nối socket
+
 function DashBoard() {
-  const [state, setState] = useState({
-    air: true,
+  const [state, setState] = useState<DeviceState>({
+    air: false,
     fan: false,
-    light: true,
+    light: false,
   });
+
+  // === Khi load trang: lấy trạng thái ban đầu ===
+  useEffect(() => {
+    fetch("http://localhost:3000/api/status")
+      .then((res) => res.json())
+      .then((data: DeviceState) => setState(data))
+      .catch((err) => console.error("Lỗi lấy trạng thái:", err));
+  }, []);
+
+  // === Khi có gói tin từ server qua socket ===
+  useEffect(() => {
+    const handleUpdate = (data: DeviceState) => {
+      console.log("📡 Nhận cập nhật từ server:", data);
+      setState(data);
+    };
+
+    socket.on("updateFromServer", handleUpdate);
+
+    return () => {
+      socket.off("updateFromServer", handleUpdate);
+    };
+  }, []);
+
+  // === Khi toggle bằng tay ===
+  const handleToggle = (device: keyof DeviceState) => {
+    const newState: DeviceState = { ...state, [device]: !state[device] };
+    setState(newState);
+
+    fetch("http://localhost:3000/api/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newState),
+    }).catch((err) => console.error("Lỗi cập nhật:", err));
+  };
 
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        height: "95vh", // full màn hình
+        height: "95vh",
         width: "100%",
-        border: "2px solid red", // debug cha
       }}
     >
-      {/* Box chứa Widget - chiếm 33% */}
+      {/* ===== Widget row ===== */}
       <div
         style={{
-          flex: "0 0 33%", // đúng 33% chiều cao
+          flex: "0 0 33%",
           display: "flex",
           flexDirection: "row",
-          width: "97%",
-          position: "relative",
-          left: "0%",
-          border: "2px solid blue", // debug box widget
           alignItems: "center",
+          justifyContent: "center",
         }}
       >
         <Widget
@@ -49,41 +87,38 @@ function DashBoard() {
         <Widget source={LightBubs} name="Light" value="600" unit="LUX" />
       </div>
 
-      {/* Box chứa ToggleSwitch - chiếm 67% */}
+      {/* ===== Toggle row ===== */}
       <div
         style={{
-          flex: "0 0 67%", // chiếm phần còn lại
+          flex: "0 0 67%",
           display: "flex",
-          justifyContent: "flex-end", // sang phải
-          alignItems: "flex-end", // xuống dưới
-          border: "2px solid green", // debug box toggle
+          justifyContent: "flex-end",
+          alignItems: "flex-end",
         }}
       >
         <div
           style={{
-            width: "25%", // 25% ngang cha
-            height: "100%", // chiếm hết phần còn lại
+            width: "25%",
+            height: "100%",
             display: "flex",
             flexDirection: "column",
-            // justifyContent: "space-evenly", // ✅ thay vì space-around
             alignItems: "center",
-            // border: "2px solid orange", // debug container toggle switch
           }}
         >
           <ToggleSwitch
             source={airConditioner}
             isOn={state.air}
-            onToggle={() => setState({ ...state, air: !state.air })}
+            onToggle={() => handleToggle("air")}
           />
           <ToggleSwitch
             source={fan}
             isOn={state.fan}
-            onToggle={() => setState({ ...state, fan: !state.fan })}
+            onToggle={() => handleToggle("fan")}
           />
           <ToggleSwitch
             source={Light}
             isOn={state.light}
-            onToggle={() => setState({ ...state, light: !state.light })}
+            onToggle={() => handleToggle("light")}
           />
         </div>
       </div>

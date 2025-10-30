@@ -1,9 +1,9 @@
-// ========== FILE: db.js ==========
+// ===================== FILE: db.js =====================
 import client from "../mqtt/mqttClient.js";
 import { getTodayCollectionModel } from "./checkCollections.js";
-import mongoose from "mongoose";
+import mongoose from "mongoose";  
 import { checkMongoConnection } from "./checkConnection.js";
-
+import cache from "../cache/cache.js";
 const uri = "mongodb+srv://thanh551419a:tPDYsc1H3Ab7kvmy@cluster0.dw9comk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 
 mongoose.connect(uri)
@@ -13,35 +13,77 @@ mongoose.connect(uri)
   })
   .catch(err => console.error("❌ MongoDB connection error:", err));
 
-// 📦 cache1 dữ liệu hiện tại
-let cache11 = {
-  temperature: null,
-  humidity: null,
-  light: null,
-  led1: null,
-  led2: null,
-  led3: null,
-};
+// ===================== Heartbeat =====================
+let lastHeartbeat = Date.now();
 
-// 🕐 Lấy thời gian GMT+7 (Việt Nam)
+
+// ===================== Get Vietnam time =====================
 function getVietnamTime() {
   const now = new Date();
-  // Chuyển sang múi giờ Việt Nam (UTC+7)
-  const vnTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
-  return vnTime;
+  return new Date(now.getTime() + (7 * 60 * 60 * 1000));
 }
 
-// 💾 Hàm lưu vào database
-async function saveToDatabase(type, data) {
+// ===================== Check day start/end =====================
+function checkTime() {
+  const vnTime = getVietnamTime();
+  const hours = vnTime.getUTCHours();
+  const minutes = vnTime.getUTCMinutes();
+  const seconds = vnTime.getUTCSeconds();
+
+  const isStartOfDay = hours === 0 && minutes === 0 && (seconds === 0 || seconds === 1);
+  const isEndOfDay = hours === 23 && minutes === 59 && (seconds === 58 || seconds === 59);
+
+  return { isStartOfDay, isEndOfDay, timestamp: vnTime };
+}
+
+// ===================== SensorModel =====================
+let SensorModel = null;
+
+const topicMap = [
+  { topic: "esp32/dht/temperature", key: "temperature", label: "🌡️ Temperature" },
+  { topic: "esp32/dht/humidity", key: "humidity", label: "💧 Humidity" },
+  { topic: "esp32/ldr/value", key: "light", label: "💡 Light" },
+  { topic: "esp32/device/led/1", key: "led1", label: "💡 LED1 Status" },
+  { topic: "esp32/device/led/2", key: "led2", label: "💡 LED2 Status" },
+  { topic: "esp32/device/led/3", key: "led3", label: "💡 LED3 Status" },
+];
+
+/**
+ * Nhận message dạng:
+ * "esp32/dht/temperature: 50  esp32/dht/humidity: 30  esp32/ldr/value: 500  esp32/device/led/1: ON ..."
+ */
+function updateCache(key,value){
+  cache.set(key,value);
+}
+async function Resolve(message) {// hàm xử lý lưu value theo đợt 
+  // Tách message thành từng cặp "topic: value"
+  const pairs = message.split(/\s{2,}/).map(pair => pair.trim()).filter(Boolean);
+
+  for (const pair of pairs) {
+    const [topic, rawValue] = pair.split(":").map(s => s.trim());
+    const mapItem = topicMap.find(t => t.topic === topic);
+    if (!mapItem) continue;
+
+    const { key, label } = mapItem;
+    const newValue = rawValue;
+    const oldValue = cache.get(key);
+
+    if (oldValue !== newValue) {
+      console.log(`${label}:`, newValue);
+      updateCache(key,value);
+      await handleData(key, newValue,"updated");
+    }
+  }
+}
+// ===================== Save to Database =====================
+async function saveToDatabase(type, data, status1) {// hàm lưu vào databases
   try {
-    // ⚠️ Không cần kiểm tra lại vì handleData đã kiểm tra rồi
     const recordData = {
       type: type,
       value: data.value,
-      status: data.status || "updated",
-      timestamp: data.timestamp
+      status: status1 || "updated",
+      timestamp: data.timestamp,
     };
-    
     const newRecord = new SensorModel(recordData);
     await newRecord.save();
     console.log(`✅ Đã lưu ${type} vào collection: ${SensorModel.collection.name}`);
@@ -50,76 +92,45 @@ async function saveToDatabase(type, data) {
   }
 }
 
-// 🕐 Kiểm tra thời gian (theo giờ Việt Nam)
-function checkTime() {
-  const vnTime = getVietnamTime();
-  const hours = vnTime.getUTCHours();
-  const minutes = vnTime.getUTCMinutes();
-  const seconds = vnTime.getUTCSeconds();
-
-  // Đầu ngày: 00:00:00 hoặc 00:00:01 (giờ VN)
-  const isStartOfDay = hours === 0 && minutes === 0 && (seconds === 0 || seconds === 1);
-  
-  // Cuối ngày: 23:59:58 hoặc 23:59:59 (giờ VN)
-  const isEndOfDay = hours === 23 && minutes === 59 && (seconds === 58 || seconds === 59);
-
-  return { isStartOfDay, isEndOfDay, timestamp: vnTime };
-}
-
-// 🔄 Xử lý và lưu dữ liệu
-async function handleData(type, value, status = "updated") {
-  // ⚠️ Kiểm tra SensorModel đã sẵn sàng chưa
+// ===================== Handle Data =====================
+async function handleData(type, value) {// lưu với status là updated và kiểm tra thời gian
   if (!SensorModel) {
     console.warn(`⚠️ SensorModel chưa sẵn sàng, bỏ qua ${type}:`, value);
     return;
   }
-
   const { isStartOfDay, isEndOfDay, timestamp } = checkTime();
-  
-  // Dữ liệu cần lưu
-  const data = {
-    type: type,
-    value: value,
-    status: status,
-    timestamp: timestamp
-  };
-
-  // ✅ Đầu ngày → Lưu và cập nhật cache1
-  if (isStartOfDay) {
+  const data = { type, value, timestamp };
+  // Đầu ngày
+  if (isStartOfDay) {// lưu database khi đã t
     console.log(`🌅 Đầu ngày (VN) - Lưu ${type}:`, value);
-    await saveToDatabase(type, data);
-    cache1[type] = value;
+    await saveToDatabase(type, data,"updated");
+    cache.set(type, value);
   }
-  // ✅ Cuối ngày → Lưu và cập nhật cache1
+  // Cuối ngày
   else if (isEndOfDay) {
     console.log(`🌙 Cuối ngày (VN) - Lưu ${type}:`, value);
-    await saveToDatabase(type, data);
-    cache1[type] = value;
+    await saveToDatabase(type, data,"updated");
+    cache.set(type, value);
   }
-  // ✅ Giữa ngày → So sánh với cache1
+  // Giữa ngày
   else {
-    if (cache1[type] !== value) {
-      console.log(`🔄 Thay đổi ${type}: ${cache1[type]} → ${value}`);
-      await saveToDatabase(type, data);
-      cache1[type] = value;
+    if (cache.get(type) !== value) {
+      console.log(`🔄 Thay đổi ${type}: ${cache.get(type)} → ${value}`);
+      await saveToDatabase(type, data,"updated");
+      cache.set(type, value);
     } else {
       console.log(`⏭️ Bỏ qua ${type} (không thay đổi):`, value);
     }
   }
 }
 
-// 📦 Lưu SensorModel để dùng chung
-let SensorModel = null;
-
-// 🚀 Khi MQTT broker kết nối thành công
+// ===================== MQTT Connect =====================
 client.on("connect", async () => {
   console.log("✅ Connected to MQTT broker");
-  
+
   try {
     SensorModel = await getTodayCollectionModel();
-    console.log("📘 Collection model sẵn sàng:", SensorModel.collection.name);
-    
-    // Subscribe tất cả topic ESP32
+    console.log("📘 Collection model sẵn sàng:", SensorModel.collection.name); // chờ kiểm tra xem collection đã có hay chưa
     client.subscribe("esp32/#");
     console.log("✅ Đã subscribe vào tất cả các topic");
   } catch (err) {
@@ -127,93 +138,40 @@ client.on("connect", async () => {
   }
 });
 
-// 📦 Lưu trữ tạm LED
-let
-led1 = "OFF" ,
-led2 = "OFF" ,
-led3 = "OFF" ;
-// Thời gian nhận heartbeat gần nhất
-let lastHeartbeat = Date.now();
-const HEARTBEAT_TIMEOUT = 500; // 500ms timeout
-
-// cache1 dữ liệu ban đầu
-let cache1 = {
-  temperature: null,
-  humidity: null,
-  light: null,
-  led1: null,
-  led2: null,
-  led3: null,
-};
-
+// ===================== MQTT Message Handler =====================
 client.on("message", async (topic, message) => {
+  const vnDate = getVietnamDate();
+  const day = String(vnDate.getUTCDate()).padStart(2, '0');
+  if(day != cache.get(dayCollectionCreate)){
+    SensorModel = await getTodayCollectionModel();
+  }
   try {
     const value = message.toString().trim();
-    const now = Date.now();
+    //const model = await getTodayCollectionModel();
+    if(cache.get(light) === null ){
+      await Resolve(value);
+    }
+    // chở kiểm tra collection đã có chưa rồi mới lưu dữ liệu vào collection tương ứng
 
-    // Nếu nhận heartbeat → cập nhật thời gian
+    // Heartbeat
     if (topic === "esp32/heartbeat") {
-      lastHeartbeat = now;
-      return; // không cần lưu database cho heartbeat
+      lastHeartbeat = Date.now();
+      return;
     }
+    
+  } catch (err) {
+    console.error("❌ Lỗi khi xử lý dữ liệu MQTT:", err);
+  }
+});
 
-
-
-    // 📊 Phân loại dữ liệu theo topic và kiểm tra cache1
-    if (topic === "esp32/dht/temperature") {
-      const temp = parseFloat(value);
-      if (cache1.temperature !== temp) {
-        console.log("🌡️ Temperature:", temp);
-        await handleData("temperature", temp);
-        cache1.temperature = temp;
-      }
-    } 
-    else if (topic === "esp32/dht/humidity") {
-      const humi = parseFloat(value);
-      if (cache1.humidity !== humi) {
-        console.log("💧 Humidity:", humi);
-        await handleData("humidity", humi);
-        cache1.humidity = humi;
-      }
-    } 
-    else if (topic === "esp32/ldr/value") {
-      const light = parseInt(value);
-      if (cache1.light !== light) {
-        console.log("💡 Light:", light);
-        await handleData("light", light);
-        cache1.light = light;
-      }
-    } 
-    else if (topic === "esp32/device/led/1") {
-      if (led1 !== value) {
-        led1 = value.toString();
-        console.log("💡 LED1 Status:", led1);
-        await handleData("led1", led1);
-        //cache1.led1 = led1;
-      }
-    } 
-    else if (topic === "esp32/device/led/2") {
-      if (led2 !== value) {
-        led2 = value.toString();
-        console.log("💡 LED2 Status:", led2);
-        await handleData("led2", led2);
-        //cache1.led2 = led2;
-      }
-    } 
-    else if (topic === "esp32/device/led/3") {
-      if (led3 !== value) {
-        led3 = value.toString();
-        console.log("💡 LED3 Status:", led3);
-        await handleData("led3", led3);
-        //cache1.led3 = led3;
-      }
-    }
-
-    // 🔴 Kiểm tra heartbeat timeout
-    if (now - lastHeartbeat > HEARTBEAT_TIMEOUT) {
-      console.log("⚠️ Không nhận được heartbeat → reset tất cả giá trị và LED OFF");
-
-      // Đặt tất cả giá trị về 0 / OFF
+let HEARTBEAT_TIMEOUT = 500; // 500ms timeout
+// ===================== Heartbeat Loop =====================
+async function heartbeatLoop() {
+  while (true) {
+    try {
+      const now = Date.now();
+      const diff = now - lastHeartbeat;
+      HEARTBEAT_TIMEOUT = 5000;
       const resetValues = {
         temperature: 0,
         humidity: 0,
@@ -222,21 +180,34 @@ client.on("message", async (topic, message) => {
         led2: "OFF",
         led3: "OFF",
       };
-
-      // Lưu database nếu giá trị thay đổi so với cache1
-      for (const key in resetValues) {
-        if (cache1[key] !== resetValues[key]) {
-          await handleData(key, resetValues[key]);
-          cache1[key] = resetValues[key];
+      //console.log(`💓 Heartbeat check - last: ${diff}ms ago`); 
+      // kiem tra heartbeat qua lau khong
+      if (diff > HEARTBEAT_TIMEOUT) {
+        console.log("⚠️ Không nhận được heartbeat → reset tất cả giá trị và LED OFF");
+        const vnDate = getVietnamDate();
+        const day = String(vnDate.getUTCDate()).padStart(2, '0');
+        if(day != cache.get(dayCollectionCreate)){
+          SensorModel = await getTodayCollectionModel();
         }
+        for (const key in resetValues) {
+          if (cache.get(key) !== resetValues[key]) {
+            await saveToDatabase(key, resetValues[key],"disconnected");
+          }
+        }
+        //cập nhật dữ liệu về 0
+        cache.reset();
+        // Cập nhật lastHeartbeat để tránh lặp liên tục
+        lastHeartbeat = now;
       }
-      // Cập nhật lastHeartbeat để tránh lặp liên tục
-      lastHeartbeat = now;
+    } catch (err) {
+      console.error("❌ Lỗi heartbeat loop:", err);
     }
 
-  } catch (err) {
-    console.error("❌ Lỗi khi xử lý dữ liệu MQTT:", err);
+    await new Promise(resolve => setTimeout(resolve, 5000)); // chờ 20 giây trước khi kiểm tra lại
   }
-});
+}
+
+// Bắt đầu heartbeat loop
+heartbeatLoop().catch(console.error);
 
 export default client;

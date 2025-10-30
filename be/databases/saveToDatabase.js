@@ -23,15 +23,22 @@ let cache = {
 };
 
 // 💾 Hàm lưu vào database
-async function saveToDatabase(model, data) {
+async function saveToDatabase(type, data) {
   try {
-    const newRecord = new model(data);
+    const recordData = {
+      type: type,
+      value: data.value,
+      status: data.status || "updated",
+      timestamp: data.timestamp,
+    };
+    const newRecord = new SensorModel(recordData);
     await newRecord.save();
-    console.log(`✅ Đã lưu vào collection: ${model.collection.name}`);
+    console.log(`✅ Đã lưu ${type} vào collection: ${SensorModel.collection.name}`);
   } catch (err) {
     console.error("❌ Lỗi khi lưu database:", err);
   }
 }
+
 
 // 🕐 Kiểm tra thời gian
 function checkTime() {
@@ -50,41 +57,6 @@ function checkTime() {
 }
 
 // 🔄 Xử lý và lưu dữ liệu
-async function handleData(type, value, timestamp) {
-  const { isStartOfDay, isEndOfDay } = checkTime();
-  
-  // Lấy model tương ứng
-  const model = cacheModels[type];
-  
-  // Dữ liệu cần lưu
-  const data = {
-    value: value,
-    timestamp: timestamp
-  };
-
-  // ✅ Đầu ngày → Lưu và cập nhật cache
-  if (isStartOfDay) {
-    console.log(`🌅 Đầu ngày - Lưu ${type}:`, value);
-    await saveToDatabase(model, data);
-    cache[type] = value;
-  }
-  // ✅ Cuối ngày → Lưu và cập nhật cache
-  else if (isEndOfDay) {
-    console.log(`🌙 Cuối ngày - Lưu ${type}:`, value);
-    await saveToDatabase(model, data);
-    cache[type] = value;
-  }
-  // ✅ Giữa ngày → So sánh với cache
-  else {
-    if (cache[type] !== value) {
-      console.log(`🔄 Thay đổi ${type}: ${cache[type]} → ${value}`);
-      await saveToDatabase(model, data);
-      cache[type] = value;
-    } else {
-      console.log(`⏭️ Bỏ qua ${type} (không thay đổi):`, value);
-    }
-  }
-}
 
 // 🚀 Khi MQTT broker kết nối thành công
 client.on("connect", async () => {
@@ -110,50 +82,5 @@ let ledTemp = {
 };
 
 // 📨 Lắng nghe message từ MQTT
-client.on("message", async (topic, message) => {
-  try {
-    const value = message.toString().trim();
-    const timestamp = new Date();
-
-    // 📊 Phân loại dữ liệu theo topic
-    if (topic === "esp32/dht/temperature") {
-      const temp = parseFloat(value);
-      console.log("🌡️ Temperature:", temp);
-      await handleData("temperature", temp, timestamp);
-    } 
-    else if (topic === "esp32/dht/humidity") {
-      const humi = parseFloat(value);
-      console.log("💧 Humidity:", humi);
-      await handleData("humidity", humi, timestamp);
-    } 
-    else if (topic === "esp32/ldr/value") {
-      const light = parseInt(value);
-      console.log("💡 Light:", light);
-      await handleData("light", light, timestamp);
-    }
-    else if (topic === "esp32/device/led/1") {
-      ledTemp.led1 = value;
-    }
-    else if (topic === "esp32/device/led/2") {
-      ledTemp.led2 = value;
-    }
-    else if (topic === "esp32/device/led/3") {
-      ledTemp.led3 = value;
-    }
-
-    // ✅ Khi đã nhận đủ 3 LED → Xử lý
-    if (ledTemp.led1 !== null && ledTemp.led2 !== null && ledTemp.led3 !== null) {
-      const ledString = `${ledTemp.led1} ${ledTemp.led2} ${ledTemp.led3}`;
-      console.log("💡 LED Status:", ledString);
-      await handleData("led", ledString, timestamp);
-      
-      // Reset
-      ledTemp = { led1: null, led2: null, led3: null };
-    }
-
-  } catch (err) {
-    console.error("❌ Lỗi khi xử lý dữ liệu MQTT:", err);
-  }
-});
 
 export default client;

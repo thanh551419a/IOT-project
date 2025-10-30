@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from "react";
 
 interface ToggleItemProps {
-  source?: string; // đường dẫn icon (cha truyền xuống)
-  isOn?: boolean; // trạng thái bật/tắt
-  onToggle?: () => void; // hàm xử lý khi toggle
+  source?: string;
+  isOn?: boolean;
+  onToggle?: () => void;
 }
 
-function TonggleSwitch({ source, isOn = false, onToggle }: ToggleItemProps) {
+export default function ToggleSwitch({
+  source,
+  isOn = false,
+  onToggle,
+}: ToggleItemProps) {
   return (
     <div
       style={{
         margin: "10%",
-        width: "80%", // chiếm 40% ngang cha (bạn có thể chỉnh lại 25%)
-        height: "15%", // mỗi block cao ~20% (3 block vừa 60%)
+        width: "80%",
+        height: "15%",
         display: "flex",
         flexDirection: "row",
         borderRadius: "15px",
@@ -25,7 +29,6 @@ function TonggleSwitch({ source, isOn = false, onToggle }: ToggleItemProps) {
         padding: "0 15px",
       }}
     >
-      {/* Icon bên trái */}
       <div
         style={{
           flex: "0 0 20%",
@@ -51,7 +54,6 @@ function TonggleSwitch({ source, isOn = false, onToggle }: ToggleItemProps) {
         )}
       </div>
 
-      {/* Toggle button bên phải */}
       <button
         onClick={onToggle}
         style={{
@@ -83,5 +85,3 @@ function TonggleSwitch({ source, isOn = false, onToggle }: ToggleItemProps) {
     </div>
   );
 }
-
-export default TonggleSwitch;
