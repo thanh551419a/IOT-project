@@ -4,7 +4,7 @@ import cache from "../cache/cache.js";
 /**
  * Lấy thời gian GMT+7 (Việt Nam)
  */
-function getVietnamDate() {
+export function getVietnamDate() {
   const now = new Date();
   // Chuyển sang múi giờ Việt Nam (UTC+7)
   const vnTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
@@ -22,7 +22,7 @@ export async function getTodayCollectionModel() {
     await new Promise(resolve => mongoose.connection.once("open", resolve));
   }
   // Lấy ngày theo giờ Việt Nam
-  const vnDate = getVietnamDate();
+  const vnDate = getVietnamDate();// lấy ngày hôm nay theo giờ vn
   const year = vnDate.getUTCFullYear();
   const month = String(vnDate.getUTCMonth() + 1).padStart(2, '0');
   const day = String(vnDate.getUTCDate()).padStart(2, '0');

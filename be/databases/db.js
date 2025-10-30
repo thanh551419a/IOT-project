@@ -1,31 +1,35 @@
 // ===================== FILE: db.js =====================
 import client from "../mqtt/mqttClient.js";
-import { getTodayCollectionModel } from "./checkCollections.js";
-import mongoose from "mongoose";  
-import { checkMongoConnection } from "./checkConnection.js";
+import { getTodayCollectionModel,getVietnamDate } from "./checkCollections.js";
+//import mongoose from "mongoose";  
+//import { checkMongoConnection } from "./checkConnection.js";
 import cache from "../cache/cache.js";
 const uri = "mongodb+srv://thanh551419a:tPDYsc1H3Ab7kvmy@cluster0.dw9comk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+let SensorModel = null;
 
-mongoose.connect(uri)
-  .then(() => {
-    console.log("✅ Connected to MongoDB");
-    checkMongoConnection();
-  })
-  .catch(err => console.error("❌ MongoDB connection error:", err));
-
-// ===================== Heartbeat =====================
-let lastHeartbeat = Date.now();
-
-
-// ===================== Get Vietnam time =====================
-function getVietnamTime() {
-  const now = new Date();
-  return new Date(now.getTime() + (7 * 60 * 60 * 1000));
+export function setSensorModel(model) {
+  SensorModel = model;
 }
 
+export function getSensorModel() {
+  return SensorModel;
+}
+// await mongoose.connect(uri)
+//   .then(() => {
+//     console.log("✅ Connected to MongoDB");
+//     checkMongoConnection();
+//   })
+//   .catch(err => console.error("❌ MongoDB connection error:", err));
+
+// ===================== Heartbeat =====================
+
+
+
+// ===================== Get Vietnam time ====================
+
 // ===================== Check day start/end =====================
-function checkTime() {
-  const vnTime = getVietnamTime();
+export function checkTime() {
+  const vnTime = getVietnamDate();
   const hours = vnTime.getUTCHours();
   const minutes = vnTime.getUTCMinutes();
   const seconds = vnTime.getUTCSeconds();
@@ -37,25 +41,18 @@ function checkTime() {
 }
 
 // ===================== SensorModel =====================
-let SensorModel = null;
 
-const topicMap = [
-  { topic: "esp32/dht/temperature", key: "temperature", label: "🌡️ Temperature" },
-  { topic: "esp32/dht/humidity", key: "humidity", label: "💧 Humidity" },
-  { topic: "esp32/ldr/value", key: "light", label: "💡 Light" },
-  { topic: "esp32/device/led/1", key: "led1", label: "💡 LED1 Status" },
-  { topic: "esp32/device/led/2", key: "led2", label: "💡 LED2 Status" },
-  { topic: "esp32/device/led/3", key: "led3", label: "💡 LED3 Status" },
-];
+
+
 
 /**
  * Nhận message dạng:
  * "esp32/dht/temperature: 50  esp32/dht/humidity: 30  esp32/ldr/value: 500  esp32/device/led/1: ON ..."
  */
-function updateCache(key,value){
+export function updateCache(key,value){
   cache.set(key,value);
 }
-async function Resolve(message) {// hàm xử lý lưu value theo đợt 
+export async function Resolve(message) {// hàm xử lý lưu value theo đợt 
   // Tách message thành từng cặp "topic: value"
   const pairs = message.split(/\s{2,}/).map(pair => pair.trim()).filter(Boolean);
 
@@ -76,7 +73,7 @@ async function Resolve(message) {// hàm xử lý lưu value theo đợt
   }
 }
 // ===================== Save to Database =====================
-async function saveToDatabase(type, data, status1) {// hàm lưu vào databases
+export async function saveToDatabase(type, data, status1) {// hàm lưu vào databases
   try {
     const recordData = {
       type: type,
@@ -125,89 +122,12 @@ async function handleData(type, value) {// lưu với status là updated và ki�
 }
 
 // ===================== MQTT Connect =====================
-client.on("connect", async () => {
-  console.log("✅ Connected to MQTT broker");
 
-  try {
-    SensorModel = await getTodayCollectionModel();
-    console.log("📘 Collection model sẵn sàng:", SensorModel.collection.name); // chờ kiểm tra xem collection đã có hay chưa
-    client.subscribe("esp32/#");
-    console.log("✅ Đã subscribe vào tất cả các topic");
-  } catch (err) {
-    console.error("❌ Lỗi khi thao tác với collection:", err);
-  }
-});
 
 // ===================== MQTT Message Handler =====================
-client.on("message", async (topic, message) => {
-  const vnDate = getVietnamDate();
-  const day = String(vnDate.getUTCDate()).padStart(2, '0');
-  if(day != cache.get(dayCollectionCreate)){
-    SensorModel = await getTodayCollectionModel();
-  }
-  try {
-    const value = message.toString().trim();
-    //const model = await getTodayCollectionModel();
-    if(cache.get(light) === null ){
-      await Resolve(value);
-    }
-    // chở kiểm tra collection đã có chưa rồi mới lưu dữ liệu vào collection tương ứng
 
-    // Heartbeat
-    if (topic === "esp32/heartbeat") {
-      lastHeartbeat = Date.now();
-      return;
-    }
-    
-  } catch (err) {
-    console.error("❌ Lỗi khi xử lý dữ liệu MQTT:", err);
-  }
-});
 
-let HEARTBEAT_TIMEOUT = 500; // 500ms timeout
-// ===================== Heartbeat Loop =====================
-async function heartbeatLoop() {
-  while (true) {
-    try {
-      const now = Date.now();
-      const diff = now - lastHeartbeat;
-      HEARTBEAT_TIMEOUT = 5000;
-      const resetValues = {
-        temperature: 0,
-        humidity: 0,
-        light: 0,
-        led1: "OFF",
-        led2: "OFF",
-        led3: "OFF",
-      };
-      //console.log(`💓 Heartbeat check - last: ${diff}ms ago`); 
-      // kiem tra heartbeat qua lau khong
-      if (diff > HEARTBEAT_TIMEOUT) {
-        console.log("⚠️ Không nhận được heartbeat → reset tất cả giá trị và LED OFF");
-        const vnDate = getVietnamDate();
-        const day = String(vnDate.getUTCDate()).padStart(2, '0');
-        if(day != cache.get(dayCollectionCreate)){
-          SensorModel = await getTodayCollectionModel();
-        }
-        for (const key in resetValues) {
-          if (cache.get(key) !== resetValues[key]) {
-            await saveToDatabase(key, resetValues[key],"disconnected");
-          }
-        }
-        //cập nhật dữ liệu về 0
-        cache.reset();
-        // Cập nhật lastHeartbeat để tránh lặp liên tục
-        lastHeartbeat = now;
-      }
-    } catch (err) {
-      console.error("❌ Lỗi heartbeat loop:", err);
-    }
 
-    await new Promise(resolve => setTimeout(resolve, 5000)); // chờ 20 giây trước khi kiểm tra lại
-  }
-}
-
-// Bắt đầu heartbeat loop
-heartbeatLoop().catch(console.error);
 
 export default client;
+// cần check collection ở phần ghi database khi dữ liệu thay đổi nữa là đủ ,
