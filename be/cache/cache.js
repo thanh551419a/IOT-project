@@ -21,6 +21,7 @@ class Cache {
   }
   reset(){
     this.data = {
+      ...this.data, // giữ nguyên các key hiện có     
       temperature: 0,
       humidity: 0,
       light: 0,

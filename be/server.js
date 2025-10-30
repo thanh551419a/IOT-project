@@ -51,7 +51,7 @@ client.on("connect", async () => {
 client.on("message", async (topic, message) => {
   const vnDate = getVietnamDate();
   const day = String(vnDate.getUTCDate()).padStart(2, '0');
-  if(day != cache.get(dayCollectionCreate)){
+  if(day != cache.get("dayCollectionCreate")){
     SensorModel = await getTodayCollectionModel();
     db.setSensorModel(SensorModel);
   }
@@ -96,8 +96,11 @@ async function heartbeatLoop() {
         console.log("⚠️ Không nhận được heartbeat → reset tất cả giá trị và LED OFF");
         const vnDate = getVietnamDate();
         const day = String(vnDate.getUTCDate()).padStart(2, '0');
-        if(day != cache.get(day)){
+        //console.log("ngày trongcahe1:",cache.get("dayCollectionCreate"));  
+        if(day != cache.get("dayCollectionCreate")){
           SensorModel = await getTodayCollectionModel();
+          cache.set("dayCollectionCreate", day); // cập nhật ngày hiện tại vào cache
+          //console.log("ngày trongcahe:",cache.get("dayCollectionCreate"));  
           db.setSensorModel(SensorModel);
         }
         for (const key in resetValues) {
@@ -105,8 +108,10 @@ async function heartbeatLoop() {
             await db.saveToDatabase(key, resetValues[key],"disconnected");
           }
         }
+        
         //cập nhật dữ liệu về 0
         cache.reset();
+        //console.log("ngày trongcahe2:",cache.get("dayCollectionCreate"));  
         // Cập nhật lastHeartbeat để tránh lặp liên tục
         lastHeartbeat = now;
       }
