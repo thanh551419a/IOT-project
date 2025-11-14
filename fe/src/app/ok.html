@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Code Type Practice</title>
+  <style>
+    body {
+      background-color: #0e0e0e;
+      color: #00ff9d;
+      font-family: "Fira Code", monospace;
+      font-size: 16px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      overflow: hidden;
+    }
+    #container {
+      width: 90%;
+      max-width: 900px;
+      background-color: #1a1a1a;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 0 20px rgba(0, 255, 157, 0.2);
+      overflow-y: auto;
+      height: 80vh;
+      white-space: pre-wrap;
+    }
+    #code {
+      color: #cccccc;
+      line-height: 1.5em;
+      position: relative;
+    }
+    .correct {
+      color: #00ff9d;
+    }
+    .incorrect {
+      color: #ff4d4d;
+      background-color: rgba(255, 0, 0, 0.1);
+    }
+    #cursor {
+      display: inline-block;
+      width: 1px;
+      background-color: #00ff9d;
+      animation: blink 1s step-start infinite;
+      height: 1em;
+      vertical-align: bottom;
+    }
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+    #input {
+      opacity: 0;
+      position: absolute;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+<pre id="code">
+package javaapplication1;
+import java.util.*;
+import java.io.*;
+import java.net.*;
+
+public class JavaApplication1 {
+
+    public static void main(String[] args) throws Exception {
+        Socket socket = new Socket("203.162.10.109", 2206);
+        InputStream in = socket.getInputStream();
+        OutputStream out = socket.getOutputStream();
+        String ma = "B22DCCN789;LOCHlgYQ";
+        
+        out.write(ma.getBytes());
+        out.flush();
+        
+        byte buffer[] = new byte [1024];// doc du lieu
+        int len = in.read(buffer);// lay do dai
+        String s = new String(buffer,0,len);// convert ra String
+        s = s.replace('|', ' ').trim();
+        String a[] = s.split("\\s+");// ????
+        long[] numbers = new long[a.length];
+        long sum = 0;
+        for (int i = 0; i < a.length; i++) {
+            sum = sum + Long.parseLong(a[i]);
+            System.out.println(a[i]);
+        }
+        String res = Long.toString(sum);
+        System.out.println(res);
+        out.write(res.getBytes());
+        out.flush();
+        in.close();
+        out.close();
+        socket.close();
+    }
+}
+</pre>
+  </div>
+  <input id="input" autofocus />
+
+  <script>
+    const codeEl = document.getElementById("code");
+    const inputEl = document.getElementById("input");
+    const text = codeEl.innerText;
+    codeEl.innerHTML = "";
+
+    const chars = text.split("");
+    chars.forEach((ch) => {
+      const span = document.createElement("span");
+      span.textContent = ch;
+      codeEl.appendChild(span);
+    });
+
+    const cursor = document.createElement("span");
+    cursor.id = "cursor";
+    codeEl.appendChild(cursor);
+
+    let index = 0;
+    const spans = codeEl.querySelectorAll("span");
+    inputEl.focus();
+
+    const moveCursor = () => {
+      const target = spans[index];
+      if (target) {
+        target.insertAdjacentElement("beforebegin", cursor);
+        target.scrollIntoView({ block: "nearest", inline: "nearest" });
+      } else {
+        codeEl.appendChild(cursor);
+      }
+    };
+
+    moveCursor();
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key.length === 1 || e.key === "Enter" || e.key === "Backspace" || e.key === "Tab") {
+        e.preventDefault();
+      }
+
+      // Xử lý phím Backspace
+      if (e.key === "Backspace" && index > 0) {
+        index--;
+        spans[index].classList.remove("correct", "incorrect");
+        moveCursor();
+        return;
+      }
+
+      // Xử lý Enter: bỏ qua ký tự xuống dòng, nhảy đến ký tự đầu tiên của dòng sau
+      if (e.key === "Enter") {
+        if (chars[index] === "\n") {
+          spans[index].classList.add("correct");
+          index++; // bỏ qua ký tự '\n'
+          // bỏ qua thêm khoảng trắng đầu dòng mới (nếu có)
+          while (chars[index] === " ") {
+            spans[index].classList.add("correct");
+            index++;
+          }
+        } else {
+          spans[index].classList.add("incorrect");
+        }
+        moveCursor();
+        return;
+      }
+
+      // Xử lý ký tự bình thường
+      if (e.key.length === 1 && index < chars.length) {
+        if (e.key === chars[index]) {
+          spans[index].classList.add("correct");
+        } else {
+          spans[index].classList.add("incorrect");
+        }
+        index++;
+        moveCursor();
+      }
+    });
+  </script>
+</body>
+</html>

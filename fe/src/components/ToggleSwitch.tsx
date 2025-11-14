@@ -4,6 +4,7 @@ interface ToggleItemProps {
   source?: string;
   isOn?: boolean;
   onToggle?: () => void;
+  disabled?: boolean;
 }
 
 export default function ToggleSwitch({

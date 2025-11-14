@@ -4,6 +4,7 @@ import { getTodayCollectionModel,getVietnamDate } from "./checkCollections.js";
 //import mongoose from "mongoose";  
 //import { checkMongoConnection } from "./checkConnection.js";
 import cache from "../cache/cache.js";
+import { time } from "console";
 const uri = "mongodb+srv://thanh551419a:tPDYsc1H3Ab7kvmy@cluster0.dw9comk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 let SensorModel = null;
 
@@ -71,6 +72,10 @@ export async function Resolve(topic , value) {
   console.log("1.old value:",cache.get(mapItem.key) , "new value:", value , " Is equal:", cache.get(mapItem.key) === value);
   const { key, label } = mapItem;
   const oldValue = cache.get(mapItem.key);
+  const dataSent = { type: key, value: value , timestamp: getVietnamDate() };
+  if (sendSSE) {
+    sendSSE(dataSent);
+  }
   if (oldValue !== value) {
     console.log(`${label}:`, value);
     //updateCache(key, value);
@@ -103,10 +108,8 @@ async function handleData(type, value) {// lưu với status là updated và ki�
     console.warn(`⚠️ SensorModel chưa sẵn sàng, bỏ qua ${type}:`, value);
     return;
   }
-  const dataSent = { type:type, value: value, timestamp: new Date() };
-  if (sendSSE) {
-    sendSSE(dataSent);
-  }
+  
+  
   const { isStartOfDay, isEndOfDay, timestamp } = checkTime();
   const data = { type, value, timestamp };
   // Đầu ngày

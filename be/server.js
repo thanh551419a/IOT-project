@@ -1,202 +1,196 @@
+// ===================== FILE: server.js =====================
 import express from "express";
 import cors from "cors";
-import http from "http";
-import { Server } from "socket.io";
 import mongoose from "mongoose";
-
-// cache và mqtt client
-import cache from "./cache/cache.js";           // 1 lần thôi
-import client from "./mqtt/mqttClient.js";      // 1 lần thôi
-
-// database
+import client from "./mqtt/mqttClient.js"; 
+import cache from "./cache/cache.js";
 import * as db from "./databases/db.js";
-import sensorSchema from "./databases/schemaData.js"; // schema, không phải model
 import { getTodayCollectionModel, getVietnamDate } from "./databases/checkCollections.js";
-import { checkMongoConnection } from "./databases/checkConnection.js";
 
-// MongoDB URI
-const uri = "mongodb+srv://thanh551419a:tPDYsc1H3Ab7kvmy@cluster0.dw9comk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
-let SensorModel = null;
-// ✅ Thêm dòng này
-
-const topicMap = [
-  { topic: "esp32/dht/temperature", key: "temperature", label: "🌡️ Temperature" },
-  { topic: "esp32/dht/humidity", key: "humidity", label: "💧 Humidity" },
-  { topic: "esp32/ldr/value", key: "light", label: "💡 Light" },
-  { topic: "esp32/device/led/1", key: "led1", label: "💡 LED1 Status" },
-  { topic: "esp32/device/led/2", key: "led2", label: "💡 LED2 Status" },
-  { topic: "esp32/device/led/3", key: "led3", label: "💡 LED3 Status" },
-];
-mongoose.connect(uri)
-  .then(() => {
-    console.log("✅ Connected to MongoDB");
-    checkMongoConnection();
-  })
-  .catch(err => console.error("❌ MongoDB connection error:", err));
-let lastHeartbeat = Date.now();
-// ===================== MQTT Client =====================
-client.on("connect", async () => {
-  console.log("✅ Connected to MQTT broker");
-  try {
-    SensorModel = await getTodayCollectionModel();
-    db.setSensorModel(SensorModel);
-    console.log("📘 Collection model sẵn sàng:", SensorModel.collection.name); // chờ kiểm tra xem collection đã có hay chưa
-    client.subscribe("esp32/#");
-    console.log("✅ Đã subscribe vào tất cả các topic");
-    heartbeatLoop().catch(console.error);
-  } catch (err) {
-    console.error("❌ Lỗi khi thao tác với collection:", err);
-  }
-  
-});
-//MQTT Message handler
-client.on("message", async (topic, message) => {
-  const vnDate = getVietnamDate();
-  const day = String(vnDate.getUTCDate()).padStart(2, '0'); 
-  if(day != cache.get("dayCollectionCreate")){
-    //console.log("kieu du lieu cua day: ",typeof day, day); // string "30"
-    cache.set("dayCollectionCreate", String(day));
-    //console.log("kieu du lieu cua dayCollectionCreate:" ,typeof cache.get("dayCollectionCreate"), cache.get("dayCollectionCreate"));
-    SensorModel = await getTodayCollectionModel();
-    console.log("from mq");
-    db.setSensorModel(SensorModel);
-    //cache.set("dayCollectionCreate", day); // cập nhật ngày hiện tại vào cache
-    
-  }// kiểm tra xem cần tạo collection hay không
-
-  try {
-    //console.log(`📩 Nhận message - Topic: ${topic}, Message: ${message.toString()}`);
-    const value = message.toString().trim();
-
-    await db.Resolve(topic,value);
-    // chở kiểm tra collection đã có chưa rồi mới lưu dữ liệu vào collection tương ứng
-    // Heartbeat
-    if (topic === "esp32/heartbeat") {
-      lastHeartbeat = Date.now();
-      return;
-    }
-  } catch (err) {
-    console.error("❌ Lỗi khi xử lý dữ liệu MQTT:", err);
-  }
-});
-
-
-//====================Heartbeat Monitor =====================
-let HEARTBEAT_TIMEOUT = 500; // 500ms timeout
-// ===================== Heartbeat Loop =====================
-async function heartbeatLoop() {
-  while (true) {
-    try {
-      const now = Date.now();
-      const diff = now - lastHeartbeat;
-      HEARTBEAT_TIMEOUT = 10000;
-      const resetValues = {
-        temperature: 0,
-        humidity: 0,
-        light: 0,
-        led1: "OFF",
-        led2: "OFF",
-        led3: "OFF",
-      };
-      //console.log(`💓 Heartbeat check - last: ${diff}ms ago`); 
-      // kiem tra heartbeat qua lau khong
-      if (diff > HEARTBEAT_TIMEOUT) {
-        console.log("⚠️ Không nhận được heartbeat → reset tất cả giá trị và LED OFF");
-        const vnDate = getVietnamDate();
-        const day = String(vnDate.getUTCDate()).padStart(2, '0');
-
-
-
-        //console.log("ngày trongcahe1:",cache.get("dayCollectionCreate"));  
-        //=====================Dang bi loi o day nay=========================
-        // console.log("kieu du lieu cua day: ",typeof day, day); // string "30"
-  
-        // console.log("kieu du lieu cua dayCollectionCreate:" ,typeof cache.get("dayCollectionCreate"), cache.get("dayCollectionCreate"));
-        // console.log(day != cache.get("dayCollectionCreate"));
-        if(day != cache.get("dayCollectionCreate")){
-          SensorModel = await getTodayCollectionModel();
-          cache.set("dayCollectionCreate", String(day)); // cập nhật ngày hiện tại vào cache
-          //console.log("ngày trongcahe:",cache.get("dayCollectionCreate"));  
-          db.setSensorModel(SensorModel);
-        }
-        for (const key in resetValues) {
-          if (cache.get(key) !== resetValues[key]) {
-            await db.saveToDatabase(key, resetValues[key],"disconnected");
-          }
-        }
-        
-        //cập nhật dữ liệu về 0
-        cache.reset();
-        //console.log("ngày trongcahe2:",cache.get("dayCollectionCreate"));  
-        // Cập nhật lastHeartbeat để tránh lặp liên tục
-        lastHeartbeat = now;
-      }
-    } catch (err) {
-      console.error("❌ Lỗi heartbeat loop:", err);
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 5000)); // chờ 20 giây trước khi kiểm tra lại
-  }
-}
-
-// Bắt đầu heartbeat loop
-
-
-
-
-
-
-
-
-
-
-
+// ==== import các API ====
+import registerUpdateAPI from "./api/update.js";
+import registerStatusAPI from "./api/status.js";
+import registerSSEAPI from "./api/events.js";
+import registerDataSearchingAPI from "./api/dataSearching.js";
+import registerLedSearchingAPI from "./api/LedSearching.js";
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🧩 Tạo model tạm thời từ schema (vì bạn không lưu DB, chỉ dùng để tạo object default)
+// ===================== MongoDB =====================
+const uri = "mongodb+srv://thanh551419a:tPDYsc1H3Ab7kvmy@cluster0.dw9comk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 
-// 🧱 Khai báo biến lưu dữ liệu cảm biến với giá trị mặc định
-//let sensor = new SensorModel(); // có các giá trị default từ schemaData
+mongoose.connect(uri)
+  .then(async () => { 
+    console.log("✅ Connected to MongoDB"); 
+    const SensorModel = await getTodayCollectionModel();
+    db.setSensorModel(SensorModel);
+  })
+  .catch(err => console.error("❌ MongoDB connection error:", err));
 
-// 🛰️ GET: gửi dữ liệu hiện tại về FE
-// app.get("/data", (req, res) => {
-//   res.json(sensor); // fe hỏi be lấy dữ liệu hiện tại
-// });
-
-// // 🛰️ POST: nhận dữ liệu mới từ FE
-// app.post("/data", (req, res) => {
-//   // Gộp dữ liệu mới vào object hiện tại (để không mất các giá trị default)
-//   sensor = { ...sensor._doc, ...req.body };// fe yêu cầu be cập nhật dữ liệu mới
-
-//   console.log("✅ Đã nhận dữ liệu mới:", sensor);
-//   res.json({
-//     message: "Đã cập nhật thành công!",
-//     newData: sensor,
-//   });
-// });
-let sseClients = [];
-app.get("/events", (req, res) => {
-  console.log("địt mẹ js");
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  console.log(res);
-  sseClients.push(res);
-  req.on("close", () => {
-    const index = sseClients.indexOf(res);
-    if (index !== -1) sseClients.splice(index, 1);
-  });
+// ===================== ENUM =====================
+export const SensorType = Object.freeze({
+  TEMPERATURE: "temperature",
+  HUMIDITY: "humidity",
+  LIGHT: "light",
+  LED1: "led1",
+  LED2: "led2",
+  LED3: "led3",
 });
 
-db.setSSECallback((data) => {
-  console.log("📡 Gửi SSE:", data);
-  sseClients.forEach((client) => {
-    client.write(`data: ${JSON.stringify(data)}\n\n`);
-  });
+export const SensorStatus = Object.freeze({
+  NONE: "none",
+  UPDATED: "updated",
+  DISCONNECTED: "disconnected",
 });
-const PORT = 3000;
-app.listen(PORT, () => console.log(`🚀 Server chạy ở cổng ${PORT}`));
 
+// ===================== SSE Clients =====================
+export let sseClients = [];
+export function broadcastSSE(data) {
+  const payload = `data: ${JSON.stringify(data)}\n\n`;
+  sseClients.forEach((res) => {
+    try {
+      res.write(payload);
+    } catch (err) {
+      const idx = sseClients.indexOf(res);
+      if (idx !== -1) sseClients.splice(idx, 1);
+    }
+  });
+}
 
+// ===================== Heartbeat =====================
+let lastHeartbeat = Date.now();
+const HEARTBEAT_TIMEOUT = 10000; // 10s
+
+// ===================== LED State =====================
+export let ledState = { [SensorType.LED1]: false, [SensorType.LED2]: false, [SensorType.LED3]: false };
+export let pendingCommands = { [SensorType.LED1]: false, [SensorType.LED2]: false, [SensorType.LED3]: false };
+
+// ===================== Helper =====================
+function getKeyFromTopic(topic) {
+  const map = [
+    { topic: "esp32/dht/temperature", key: SensorType.TEMPERATURE },
+    { topic: "esp32/dht/humidity", key: SensorType.HUMIDITY },
+    { topic: "esp32/ldr/value", key: SensorType.LIGHT },
+    { topic: "esp32/device/led/1", key: SensorType.LED1 },
+    { topic: "esp32/device/led/2", key: SensorType.LED2 },
+    { topic: "esp32/device/led/3", key: SensorType.LED3 },
+  ];
+  const f = map.find(t => t.topic === topic);
+  return f ? f.key : null;
+}
+
+// ===================== MQTT =====================
+client.on("connect", async () => {
+  console.log("✅ Connected to MQTT broker");
+  try {
+    const SensorModel = await getTodayCollectionModel();
+    db.setSensorModel(SensorModel);
+    client.subscribe("esp32/#");
+    console.log("✅ Subscribed esp32/#");
+    heartbeatLoop().catch(console.error);
+  } catch (err) {
+    console.error("❌ MQTT init error:", err);
+  }
+});
+
+client.on("message", async (topic, message) => {
+  const msg = message.toString().trim();
+
+  if (topic === "esp32/heartbeat") {
+    lastHeartbeat = Date.now();
+    return;
+  }
+
+  try {
+    const vnDate = getVietnamDate();
+    const day = String(vnDate.getUTCDate()).padStart(2, "0");
+    if (day !== cache.get("dayCollectionCreate")) {
+      cache.set("dayCollectionCreate", String(day));
+      const SensorModel = await getTodayCollectionModel();
+      db.setSensorModel(SensorModel);
+    }
+  } catch (err) {
+    console.error("❌ collection check error:", err);
+  }
+
+  const key = getKeyFromTopic(topic);
+
+  if ([SensorType.TEMPERATURE, SensorType.HUMIDITY, SensorType.LIGHT].includes(key)) {
+    cache.set(key, msg);
+    await db.Resolve(topic, msg);
+    broadcastSSE({ type: key, value: msg });
+    return;
+  }
+
+  if ([SensorType.LED1, SensorType.LED2, SensorType.LED3].includes(key)) {
+    const normalized = msg === "ON" ? "ON" : "OFF";
+    const boolVal = normalized === "ON";
+    if (ledState[key] !== boolVal) {
+      ledState[key] = boolVal;
+      pendingCommands[key] = false;
+      cache.set(key, normalized);
+      await db.saveToDatabase(key, { value: normalized, timestamp: getVietnamDate() }, SensorStatus.UPDATED);
+      broadcastSSE({ type: key, value: normalized });
+    }
+    return;
+  }
+});
+
+// ===================== GỌI API =====================
+registerUpdateAPI(app);
+registerStatusAPI(app);
+registerSSEAPI(app);
+registerDataSearchingAPI(app);
+registerLedSearchingAPI(app);
+// ===================== Heartbeat Loop =====================
+async function heartbeatLoop(){
+  while(true){
+    try{
+      const now = Date.now();
+      if(now - lastHeartbeat > HEARTBEAT_TIMEOUT){
+        console.warn("⚠️ Heartbeat lost -> reset sensors & LEDs");
+        const resetValues = {
+          [SensorType.TEMPERATURE]: "0",
+          [SensorType.HUMIDITY]: "0",
+          [SensorType.LIGHT]: "0",
+          [SensorType.LED1]: "OFF",
+          [SensorType.LED2]: "OFF",
+          [SensorType.LED3]: "OFF",
+        };
+        const vnDate = getVietnamDate();
+        const day = String(vnDate.getUTCDate()).padStart(2,"0");
+        if(day !== cache.get("dayCollectionCreate")){
+          cache.set("dayCollectionCreate",day);
+          const SensorModel = await getTodayCollectionModel();
+          db.setSensorModel(SensorModel);
+        }
+        for(const k in resetValues){
+          const val = resetValues[k];
+          if(k.startsWith("led")){
+            const boolVal = val==="ON";
+            if(ledState[k]!==boolVal){
+              ledState[k]=boolVal;
+              pendingCommands[k]=false;
+              await db.saveToDatabase(k,{value:val,timestamp:getVietnamDate()},SensorStatus.DISCONNECTED);
+              broadcastSSE({type:k,value:val});
+            }
+            cache.set(k,val);
+          }else{
+            if(cache.get(k)!==val){
+              await db.saveToDatabase(k,{value:val,timestamp:getVietnamDate()},SensorStatus.DISCONNECTED);
+            }
+            cache.set(k,val);
+            broadcastSSE({type:k,value:val});
+          }
+        }
+        lastHeartbeat = Date.now();
+      }
+    }catch(err){ console.error("❌ heartbeatLoop err:",err);}
+    await new Promise(r=>setTimeout(r,5000));
+  }
+}
+
+// ===================== Start Server =====================
+const PORT=3000;
+app.listen(PORT,()=>console.log(`🚀 Server running on port ${PORT}`));

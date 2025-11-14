@@ -5,9 +5,10 @@ interface WidgetProps {
   name?: string;
   value?: string | number;
   unit?: string;
+  style?: React.CSSProperties; // ✅ Cho phép truyền style từ bên ngoài
 }
 
-function Widget({ source, name, value, unit }: WidgetProps) {
+function Widget({ source, name, value, unit, style }: WidgetProps) {
   return (
     // Hình chữ nhật to nhất , chứa cả hình và text
     <div
@@ -15,25 +16,20 @@ function Widget({ source, name, value, unit }: WidgetProps) {
         margin: "3%",
         width: "40%",
         height: "50%",
-        // border: "2px solid black",
         display: "flex",
         flexDirection: "row", // chia ngang
         borderRadius: "15px",
         border: "6px solid #d1d5db", // xám nhạt
-        // backgroundColor: "rgba(0,0,0,0.1)", // DEBUG
         backgroundColor: "white",
         boxShadow: "0 4px 12px rgba(0,0,0,0.1)", // bóng mềm
         overflow: "hidden", // bo tròn gọn hơn
       }}
     >
-      {/* Image chiếm 30% */}
+      {/* Image chiếm 20% */}
       <div
         style={{
           flex: "0 0 20%",
           height: "100%",
-          width: "15%",
-          // border: "1px solid red", // DEBUG
-          // backgroundColor: "rgba(255,0,0,0.1)", // DEBUG
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -53,67 +49,59 @@ function Widget({ source, name, value, unit }: WidgetProps) {
         />
       </div>
 
-      {/* Text chiếm 70% */}
+      {/* Text chiếm 80% */}
       <div
         style={{
           flex: "0 0 80%",
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          // border: "1px solid blue", // DEBUG
-          // backgroundColor: "rgba(0,0,255,0.1)", // DEBUG
           justifyContent: "center",
           padding: "0 15px",
         }}
       >
-        {/* Name chiếm 50% dọc */}
+        {/* Name */}
         <div
           style={{
             flex: 1,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            font: "Simple",
-            // border: "1px solid green", // DEBUG
-            // backgroundColor: "rgba(0,255,0,0.1)", // DEBUG
           }}
         >
           <h1
             style={{
-              fontSize: "1.8vw", // responsive
+              fontSize: "1.8vw",
               margin: 0,
-              textAlign: "unset",
+              textAlign: "center",
               fontWeight: 500,
-              color: "#374151", // xám đậm
+              color: "#374151",
               whiteSpace: "nowrap",
               overflow: "hidden",
-              textOverflow: "ellipsis", // cắt chữ dài bằng "..."
+              textOverflow: "ellipsis",
             }}
           >
             {name}
           </h1>
         </div>
 
-        {/* Value + Unit chiếm 50% dọc */}
+        {/* Value + Unit */}
         <div
           style={{
             flex: 1,
             display: "flex",
-            // alignItems: "center",
             justifyContent: "center",
-            // border: "1px solid orange", // DEBUG
-            // backgroundColor: "rgba(255,165,0,0.1)", // DEBUG
             alignItems: "center",
           }}
         >
           <h2
             style={{
-              fontSize: "2.2vw", // responsive
+              fontSize: "2.2vw",
               margin: 0,
               textAlign: "center",
               fontWeight: 600,
-              color: "#111827", // đậm hơn
-              font: "Simple",
+              color: "#111827",
+              ...style, // ✅ Áp dụng style truyền từ bên ngoài
             }}
           >
             {value}{" "}
@@ -121,7 +109,7 @@ function Widget({ source, name, value, unit }: WidgetProps) {
               style={{
                 fontSize: "1.4vw",
                 fontWeight: 400,
-                color: "#6b7280", // xám nhạt hơn
+                color: "#6b7280",
               }}
             >
               {unit}
